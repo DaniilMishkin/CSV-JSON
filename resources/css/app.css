@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+
+@theme {
+    --breakpoint-tablet: 768px;
+    --breakpoint-laptop: 1024px;
+    --breakpoint-desktop: 1920px;
+
+    --font-sans:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+        'Noto Color Emoji';
+
+    --color-bg-main: #fafafa;
+    --color-bg-gold: #d1af77;
+    --color-bg-white: #ffffff;
+
+    --color-input-border: #79747e;
+    --color-input-border-readonly: #e6e8ec;
+    --color-input-border-focus: #5c5858;
+    --color-input-value: #1c1f22;
+    --color-input-placeholder: #79747e;
+    --color-input-disabled: #fafafa;
+    --color-input-error: #f30303;
+}
