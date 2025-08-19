@@ -35,6 +35,8 @@
     31 => 'Spatie\\LaravelData\\LaravelDataServiceProvider',
     32 => 'Spatie\\StructureDiscoverer\\StructureDiscovererServiceProvider',
     33 => 'Tighten\\Ziggy\\ZiggyServiceProvider',
+    34 => 'App\\Providers\\AppServiceProvider',
+    35 => 'App\\Providers\\HorizonServiceProvider',
   ),
   'eager' => 
   array (
@@ -57,6 +59,8 @@
     16 => 'Spatie\\LaravelData\\LaravelDataServiceProvider',
     17 => 'Spatie\\StructureDiscoverer\\StructureDiscovererServiceProvider',
     18 => 'Tighten\\Ziggy\\ZiggyServiceProvider',
+    19 => 'App\\Providers\\AppServiceProvider',
+    20 => 'App\\Providers\\HorizonServiceProvider',
   ),
   'deferred' => 
   array (
