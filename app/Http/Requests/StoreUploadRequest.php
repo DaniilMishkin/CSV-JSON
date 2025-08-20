@@ -2,7 +2,6 @@
 
 namespace App\Http\Requests;
 
-use App\Enums\JSONStructures;
 use App\Models\Upload;
 use Illuminate\Http\UploadedFile;
 use Spatie\LaravelData\Attributes\Validation\File;
@@ -16,5 +15,4 @@ class StoreUploadRequest extends Data
     #[Max(Upload::RULE_MAX_NAME)]
     public string $name;
     public bool $isPrivate;
-    public JSONStructures $strategy;
 }

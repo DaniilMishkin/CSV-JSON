@@ -14,42 +14,23 @@
             :errors="[form.errors.name]"
         />
         <CheckboxWithLabel v-model="form.isPrivate" label="Is private" />
-        <BaseSelect
-            v-model="form.strategy"
-            :options="strategyOptions"
-            track-by="id"
-            label-field="name"
-            label="Strategy"
-            placeholder="Select strategy"
-            :errors="[form.errors.strategy]"
-            :return-object="false"
-        />
         <BaseButton label="Upload" @click="uploadFile" />
     </div>
 </template>
 
 <script setup>
-import BaseSelect from '../../../components/ui/select/BaseSelect.vue'
-import { RouteNamesVocabulary } from '../../../helpers/route-names-vocabulary.js'
 import BaseCsvUploader from '../../../components/ui/file-uploader/BaseCsvUploader.vue'
+import CheckboxWithLabel from '../../../components/ui/checkbox/CheckboxWithLabel.vue'
 import BaseInput from '../../../components/ui/input/BaseInput.vue'
 import BaseButton from '../../../components/ui/BaseButton.vue'
+import { RouteNamesVocabulary } from '../../../helpers/route-names-vocabulary.js'
 import { useForm } from '@inertiajs/vue3'
 import { toast } from 'vue3-toastify'
-import CheckboxWithLabel from '../../../components/ui/checkbox/CheckboxWithLabel.vue'
 import { route } from 'ziggy-js'
-
-defineProps({
-    strategyOptions: {
-        type: Array,
-        default: () => [],
-    },
-})
 
 const form = useForm({
     file: null,
     name: null,
-    strategy: null,
     isPrivate: false,
 })
 
