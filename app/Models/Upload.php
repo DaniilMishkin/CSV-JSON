@@ -18,12 +18,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property JSONStructures     conversion_strategy
  * @property ConversionStatuses status
  * @property bool               is_private
- * @property string             csv_path
- * @property string             json_path
+ * @property string             path_original
+ * @property string             path_converted
+ * @property string             error_message
  */
 class Upload extends Model
 {
-    const string TABLE = 'uploads';
+    public const string ORIGINAL_DIR = 'uploads/original';
+    public const string CONVERTED_DIR = 'uploads/converted';
+
+    public const string TABLE = 'uploads';
 
     public const int RULE_MAX_NAME = 60;
 
