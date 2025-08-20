@@ -7,30 +7,26 @@ class HeaderBasedFlatStrategy implements CsvConversionStrategy
     public function convert($csvStream): array
     {
         $records = [];
-        $headers = null;
         $count = 0;
 
-        while (($row = fgetcsv($csvStream)) !== false) {
-            if ($headers === null) {
-                $headers = $row;
+        $headerLine = fgets($csvStream);
+        if ($headerLine === false) {
+            return [$records, $count];
+        }
+        $headerLine = trim($headerLine);
 
+        while (($line = fgets($csvStream)) !== false) {
+            $line = trim($line);
+            if ($line === '') {
                 continue;
             }
 
-            $records[] = $this->combineRow($headers, $row);
+            $records[] = [
+                $headerLine => $line
+            ];
             $count++;
         }
 
         return [$records, $count];
-    }
-
-    private function combineRow(array $headers, array $row): array
-    {
-        $combined = [];
-        foreach ($headers as $index => $key) {
-            $combined[$key] = $row[$index] ?? null;
-        }
-
-        return $combined;
     }
 }
