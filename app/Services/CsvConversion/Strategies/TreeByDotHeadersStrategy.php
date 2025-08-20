@@ -2,7 +2,6 @@
 
 namespace App\Services\CsvConversion\Strategies;
 
-
 class TreeByDotHeadersStrategy implements CsvConversionStrategy
 {
     private const string ENCLOSURE = '"';
@@ -21,7 +20,8 @@ class TreeByDotHeadersStrategy implements CsvConversionStrategy
                 if (isset($row[0])) {
                     $row[0] = preg_replace('/^\xEF\xBB\xBF/u', '', (string) $row[0]);
                 }
-                $headers = array_map(static fn($h) => trim((string) $h), $row);
+                $headers = array_map(static fn ($h) => trim((string) $h), $row);
+
                 continue;
             }
 
@@ -46,6 +46,7 @@ class TreeByDotHeadersStrategy implements CsvConversionStrategy
         $line = fgets($stream);
         if ($line === false) {
             fseek($stream, $pos);
+
             return ',';
         }
 
@@ -62,6 +63,7 @@ class TreeByDotHeadersStrategy implements CsvConversionStrategy
                 $best = $cand;
             }
         }
+
         return $best;
     }
 
@@ -69,7 +71,7 @@ class TreeByDotHeadersStrategy implements CsvConversionStrategy
     {
         $segments = array_filter(
             array_map('trim', explode('.', $path)),
-            static fn($s) => $s !== ''
+            static fn ($s) => $s !== ''
         );
 
         $ref = &$array;
@@ -82,6 +84,7 @@ class TreeByDotHeadersStrategy implements CsvConversionStrategy
 
             if ($isLast) {
                 $ref[$key] = $value;
+
                 return;
             }
             if (!isset($ref[$key]) || !is_array($ref[$key])) {
