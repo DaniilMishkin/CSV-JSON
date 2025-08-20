@@ -22,7 +22,7 @@ class HeaderBasedFlatStrategy implements CsvConversionStrategy
             }
 
             $records[] = [
-                $headerLine => $line
+                $headerLine => $line,
             ];
             $count++;
         }
