@@ -8,14 +8,18 @@ use App\Http\Requests\StoreUploadRequest;
 use App\Http\Responses\Upload\UploadListItemResponse;
 use App\Models\Upload;
 use App\Models\User;
+use App\Services\Storage\FileStorageService;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Spatie\LaravelData\PaginatedDataCollection;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class UploadRepository extends AbstractRepository
 {
+    public function __construct(
+        private readonly FileStorageService $fileStorageService
+    ) {}
+
     public function listPaginated(PaginatedRequest $request, string $mapTo = UploadListItemResponse::class): PaginatedDataCollection
     {
         $query = $this->listQuery()
@@ -32,11 +36,11 @@ class UploadRepository extends AbstractRepository
 
     public function create(StoreUploadRequest $request): Upload
     {
-        if ($this->userHasRecentUpload($this->user())) {
-            throw ValidationException::withMessages([
-                'file' => 'Upload limit: 1 file per 5 minutes',
-            ])->status(429);
-        }
+//        if ($this->userHasRecentUpload($this->user())) {
+//            throw ValidationException::withMessages([
+//                'file' => 'Upload limit: 1 file per 5 minutes',
+//            ])->status(429);
+//        }
 
         if ($this->user()->created_at === null || $this->user()->created_at->lt(now()->subDays(10)) === false) {
             throw ValidationException::withMessages([
@@ -66,15 +70,16 @@ class UploadRepository extends AbstractRepository
     public function markDone(Upload $upload, string $jsonPath): Upload
     {
         $upload->status = ConversionStatuses::Done;
-        $upload->json_path = $jsonPath;
+        $upload->path_converted = $jsonPath;
         $upload->save();
 
         return $upload;
     }
 
-    public function markError(Upload $upload): Upload
+    public function markError(Upload $upload, string $error): Upload
     {
         $upload->status = ConversionStatuses::Error;
+        $upload->error_message = $error;
         $upload->save();
 
         return $upload;
@@ -84,7 +89,7 @@ class UploadRepository extends AbstractRepository
     {
         $this->checkAccess('download', $upload);
 
-        return Storage::download($upload->json_path, pathinfo($upload->name, PATHINFO_FILENAME).'.json');
+        return $this->fileStorageService->download($upload->path_converted,pathinfo($upload->name, PATHINFO_FILENAME).'.json');
     }
 
     private function listQuery(): Builder
