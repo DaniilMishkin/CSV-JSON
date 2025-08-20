@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\ConversionStatuses;
-use App\Enums\JSONStructures;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
@@ -15,7 +14,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property CarbonImmutable    created_at
  * @property CarbonImmutable    updated_at
  * @property string             name
- * @property JSONStructures     conversion_strategy
  * @property ConversionStatuses status
  * @property bool               is_private
  * @property string             path_original
@@ -35,7 +33,6 @@ class Upload extends Model
 
     protected $casts = [
         'is_private' => 'boolean',
-        'conversion_strategy' => JSONStructures::class,
         'status' => ConversionStatuses::class,
     ];
 

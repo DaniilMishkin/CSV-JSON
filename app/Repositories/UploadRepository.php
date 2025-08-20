@@ -3,26 +3,26 @@
 namespace App\Repositories;
 
 use App\Enums\ConversionStatuses;
-use App\Http\Requests\PaginatedRequest;
-use App\Http\Requests\StoreUploadRequest;
 use App\Http\Responses\Upload\UploadListItemResponse;
 use App\Models\Upload;
 use App\Models\User;
-use App\Services\Storage\FileStorageService;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Validation\ValidationException;
 use Spatie\LaravelData\PaginatedDataCollection;
-use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class UploadRepository extends AbstractRepository
 {
-    public function __construct(
-        private readonly FileStorageService $fileStorageService
-    ) {}
-
-    public function listPaginated(PaginatedRequest $request, string $mapTo = UploadListItemResponse::class): PaginatedDataCollection
+    public function getUpload(int $id): Upload
     {
-        $query = $this->listQuery()
+        return Upload::query()->findOrFail($id);
+    }
+
+    public function listPaginated(
+        int $page,
+        int $perPage,
+        ?int $userId,
+        string $mapTo = UploadListItemResponse::class
+    ): PaginatedDataCollection {
+        $query = $this->listQuery($userId)
             ->orderBy('id');
 
         switch ($mapTo) {
@@ -31,86 +31,70 @@ class UploadRepository extends AbstractRepository
                 break;
         }
 
-        return $this->paginate($query, $request, $mapTo);
+        return $this->paginate($query, $page, $perPage, $mapTo);
     }
 
-    public function create(StoreUploadRequest $request): Upload
+    public function create(string $name, bool $isPrivate, int $userId): Upload
     {
-        //        if ($this->userHasRecentUpload($this->user())) {
-        //            throw ValidationException::withMessages([
-        //                'file' => 'Upload limit: 1 file per 5 minutes',
-        //            ])->status(429);
-        //        }
-
-        if ($this->user()->created_at === null || $this->user()->created_at->lt(now()->subDays(10)) === false) {
-            throw ValidationException::withMessages([
-                'file' => 'Account must be at least 10 days old',
-            ])->status(403);
-        }
-
         $model = new Upload();
-        $model->name = $request->name;
-        $model->is_private = $request->isPrivate;
-        $model->conversion_strategy = $request->strategy;
-        $model->author()->associate($this->user());
-
-        $model->save();
+        $model->name = $name;
+        $model->is_private = $isPrivate;
+        $model->author()->associate($userId);
 
         return $model;
     }
 
-    public function markProcessing(Upload $upload): Upload
+    public function updateStatus(int|Upload $id, ConversionStatuses $status): bool
     {
-        $upload->status = ConversionStatuses::Processing;
-        $upload->save();
+        $model = $id instanceof Upload ? $id : $this->getUpload($id);
+        $model->status = $status;
 
-        return $upload;
+        return $model->save();
     }
 
-    public function markDone(Upload $upload, string $jsonPath): Upload
+    public function updatePathOriginal(int|Upload $id, string $path): bool
     {
-        $upload->status = ConversionStatuses::Done;
-        $upload->path_converted = $jsonPath;
-        $upload->save();
+        $model = $id instanceof Upload ? $id : $this->getUpload($id);
+        $model->path_original = $path;
 
-        return $upload;
+        return $model->save();
     }
 
-    public function markError(Upload $upload, string $error): Upload
+    public function updatePathConverted(int|Upload $id, string $path): bool
     {
-        $upload->status = ConversionStatuses::Error;
-        $upload->error_message = $error;
-        $upload->save();
+        $model = $id instanceof Upload ? $id : $this->getUpload($id);
+        $model->path_converted = $path;
 
-        return $upload;
+        return $model->save();
     }
 
-    public function download(Upload $upload): StreamedResponse
+    public function updateErrorMessage(int|Upload $id, string $message): bool
     {
-        $this->checkAccess('download', $upload);
+        $model = $id instanceof Upload ? $id : $this->getUpload($id);
+        $model->error_message = $message;
 
-        return $this->fileStorageService->download($upload->path_converted, pathinfo($upload->name, PATHINFO_FILENAME).'.json');
+        return $model->save();
     }
 
-    private function listQuery(): Builder
-    {
-        $query = Upload::query();
-
-        if (!is_null($this->user())) {
-            return $query->where(function (Builder $query) {
-                $query->where('user_id', $this->user()->id)
-                    ->orWhere('is_private', false);
-            });
-        }
-
-        return $query->where('is_private', false);
-    }
-
-    private function userHasRecentUpload(User $user, int $minutes = 5): bool
+    public function userHasRecentUpload(User $user, int $minutes = 5): bool
     {
         return Upload::query()
             ->where('user_id', $user->id)
             ->where('created_at', '>=', now()->subMinutes($minutes))
             ->exists();
+    }
+
+    private function listQuery(?int $userId): Builder
+    {
+        $query = Upload::query();
+
+        if (!is_null($userId)) {
+            return $query->where(function (Builder $query) use ($userId) {
+                $query->where('user_id', $userId)
+                    ->orWhere('is_private', false);
+            });
+        }
+
+        return $query->where('is_private', false);
     }
 }

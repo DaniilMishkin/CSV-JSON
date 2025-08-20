@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\ConversionStatuses;
-use App\Enums\JSONStructures;
 use App\Models\Upload;
 use App\Models\User;
 use Illuminate\Database\Migrations\Migration;
@@ -16,7 +15,6 @@ return new class() extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained(User::TABLE);
             $table->string('name', Upload::RULE_MAX_NAME);
-            $table->enum('conversion_strategy', JSONStructures::values())->default(JSONStructures::Flat);
             $table->boolean('is_private')->default(false);
             $table->string('csv_path')->nullable();
             $table->string('json_path')->nullable();
