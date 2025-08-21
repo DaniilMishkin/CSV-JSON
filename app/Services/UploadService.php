@@ -26,11 +26,11 @@ class UploadService extends AbstractService
      */
     public function create(UploadedFile $file, string $name, bool $isPrivate): Upload
     {
-        //        if ($this->uploadRepository->userHasRecentUpload($this->user())) {
-        //            throw ValidationException::withMessages([
-        //                'file' => 'Upload limit: 1 file per 5 minutes',
-        //            ])->status(429);
-        //        }
+        if ($this->uploadRepository->userHasRecentUpload($this->user())) {
+            throw ValidationException::withMessages([
+                'file' => 'Upload limit: 1 file per 5 minutes',
+            ])->status(429);
+        }
 
         if ($this->user()->created_at === null || $this->user()->created_at->lt(now()->subDays(10)) === false) {
             throw ValidationException::withMessages([
