@@ -10,6 +10,8 @@ class CsvConversionService
     private bool $autoDetectDelimiter = true;
     private bool $skipEmptyLines = true;
 
+    private array $headerSegmentsCache = [];
+
     public function configure(array $options = []): self
     {
         $this->enclosure = $options['enclosure'] ?? $this->enclosure;
@@ -29,54 +31,88 @@ class CsvConversionService
         $delimiter = $this->delimiter ?? ($this->autoDetectDelimiter ? $this->detectDelimiterAndRewind($csvStream) : ',');
 
         $headers = null;
+        $this->headerSegmentsCache = [];
+
         while (($row = fgetcsv($csvStream, 0, $delimiter, $this->enclosure, $this->escape)) !== false) {
-            if ($this->skipEmptyLines && count(array_filter($row, fn ($v) => $v !== null && $v !== '')) === 0) {
-                continue;
+            if ($this->skipEmptyLines) {
+                $nonEmpty = false;
+                foreach ($row as $v) {
+                    if ($v !== null && $v !== '') {
+                        $nonEmpty = true;
+                        break;
+                    }
+                }
+                if (!$nonEmpty) {
+                    continue;
+                }
             }
 
             if ($headers === null) {
                 $row[0] = $row[0] ?? '';
-                $row[0] = preg_replace('/^\xEF\xBB\xBF/u', '', $row[0]);
-                $headers = array_map(fn ($h) => trim((string) $h), $row);
+
+                if ($row[0] !== '' && str_starts_with($row[0], "\xEF\xBB\xBF")) {
+                    $row[0] = preg_replace('/^\xEF\xBB\xBF/u', '', $row[0]);
+                }
+
+                $headers = array_map(static fn ($h) => trim((string) $h), $row);
+                foreach ($headers as $i => $h) {
+                    $this->headerSegmentsCache[$i] = $this->splitHeader($h);
+                }
 
                 continue;
             }
 
-            $item = $this->buildItem($headers, $row);
+            $item = $this->buildItemFast($row);
 
-            $this->mergeAutoTree($tree, $item);
+            $this->mergeAutoTreeIndexed($tree, $item);
 
             $count++;
         }
 
+        $this->stripMeta($tree);
+
         return [$tree, $count];
     }
 
-    private function buildItem(array $headers, array $row): array
+    private function buildItemFast(array $row): array
     {
         $item = [];
-        foreach ($headers as $i => $header) {
-            if ($header === '' || !array_key_exists($i, $row)) {
+        foreach ($this->headerSegmentsCache as $i => $segments) {
+            if (!array_key_exists($i, $row)) {
                 continue;
             }
-            $this->setPath($item, $header, $row[$i]);
+            $value = $row[$i];
+            if ($segments === []) {
+                continue;
+            }
+            $this->setPathWithSegments($item, $segments, $value);
         }
 
         return $item;
     }
 
-    private function setPath(array &$array, string $header, $value): void
+    private function splitHeader(string $header): array
     {
-        $segments = preg_split('/[\s._-]+/', trim($header)) ?: ['field'];
+        $header = trim($header);
+        if ($header === '') {
+            return [];
+        }
+        $segments = preg_split('/[\s._-]+/', $header) ?: [];
+        foreach ($segments as &$s) {
+            $s = ($s === '' ? 'field' : $s);
+        }
+
+        return $segments;
+    }
+
+    private function setPathWithSegments(array &$array, array $segments, $value): void
+    {
         $ref = &$array;
-        $lastIndex = count($segments) - 1;
+        $last = count($segments) - 1;
 
         foreach ($segments as $i => $segment) {
-            $segment = $segment ?: 'field';
-            $isLast = $i === $lastIndex;
             $key = ctype_digit($segment) ? (int) $segment : $segment;
-
-            if ($isLast) {
+            if ($i === $last) {
                 $ref[$key] = $value;
             } else {
                 if (!isset($ref[$key]) || !is_array($ref[$key])) {
@@ -87,11 +123,17 @@ class CsvConversionService
         }
     }
 
-    private function mergeAutoTree(array &$tree, array $item): void
+    private function mergeAutoTreeIndexed(array &$tree, array $item): void
     {
         foreach ($item as $key => $value) {
-            if (!isset($tree[$key])) {
+            if (!array_key_exists($key, $tree)) {
                 $tree[$key] = $value;
+
+                continue;
+            }
+
+            if (is_array($tree[$key]) && is_array($value)) {
+                $this->mergeNode($tree[$key], $value);
 
                 continue;
             }
@@ -99,32 +141,113 @@ class CsvConversionService
             if (!is_array($tree[$key])) {
                 $tree[$key] = [$tree[$key]];
             }
-
-            if (is_array($value)) {
-                $merged = false;
-                foreach ($tree[$key] as &$existing) {
-                    if ($this->similarStructure($existing, $value)) {
-                        $this->mergeAutoTree($existing, $value);
-                        $merged = true;
-                        break;
-                    }
-                }
-                if (!$merged) {
-                    $tree[$key][] = $value;
-                }
-            } else {
-                $tree[$key][] = $value;
-            }
+            $tree[$key][] = $value;
         }
     }
 
-    private function similarStructure($a, $b): bool
+    private function mergeNode(array &$node, array $value): void
     {
-        if (!is_array($a) || !is_array($b)) {
-            return false;
+        if (!isset($node['__index']) || !is_array($node['__index'])) {
+            $node['__index'] = [];
+            foreach ($node as $k => &$existing) {
+                if ($k === '__index') {
+                    continue;
+                }
+                if (is_array($existing)) {
+                    $sig = $this->signature($existing);
+                    $node['__index'][$sig][] = &$existing;
+                }
+            }
+            unset($existing);
         }
 
-        return count(array_intersect(array_keys($a), array_keys($b))) > 0;
+        if (!$this->isAssoc($value)) {
+            $node[] = $value;
+
+            return;
+        }
+
+        $sig = $this->signature($value);
+
+        if (!isset($node['__index'][$sig])) {
+            $node[] = $value;
+            $lastKey = array_key_last($node);
+            while ($lastKey === '__index') {
+                $node[] = $value;
+                $lastKey = array_key_last($node);
+            }
+            $node['__index'][$sig][] = &$node[$lastKey];
+
+            return;
+        }
+
+        foreach ($node['__index'][$sig] as &$candidate) {
+            foreach ($value as $vk => $vv) {
+                if ($vk === '__index') {
+                    continue;
+                }
+                if (!array_key_exists($vk, $candidate)) {
+                    $candidate[$vk] = $vv;
+
+                    continue;
+                }
+                if (is_array($candidate[$vk]) && is_array($vv)) {
+                    $this->mergeNode($candidate[$vk], $vv);
+                } else {
+                    if (!is_array($candidate[$vk])) {
+                        $candidate[$vk] = [$candidate[$vk]];
+                    }
+                    $candidate[$vk][] = $vv;
+                }
+            }
+            unset($candidate);
+
+            return;
+        }
+
+        $node[] = $value;
+        $lastKey = array_key_last($node);
+        $node['__index'][$sig][] = &$node[$lastKey];
+    }
+
+    private function signature(array $arr): string
+    {
+        $keys = [];
+        foreach ($arr as $k => $_) {
+            if ($k === '__index') {
+                continue;
+            }
+            $keys[] = (string) $k;
+        }
+        sort($keys, SORT_STRING);
+
+        return implode("\x1F", $keys);
+    }
+
+    private function isAssoc(array $arr): bool
+    {
+        $i = 0;
+        foreach ($arr as $k => $_) {
+            if ($k !== $i++) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function stripMeta(array &$node): void
+    {
+        if (!is_array($node)) {
+            return;
+        }
+        unset($node['__index']);
+        foreach ($node as &$v) {
+            if (is_array($v)) {
+                $this->stripMeta($v);
+            }
+        }
+        unset($v);
     }
 
     private function detectDelimiterAndRewind($stream): string
@@ -136,7 +259,9 @@ class CsvConversionService
 
             return ',';
         }
-        $line = preg_replace('/^\xEF\xBB\xBF/u', '', $line);
+        if (str_starts_with($line, "\xEF\xBB\xBF")) {
+            $line = substr($line, 3);
+        }
         fseek($stream, $pos);
 
         $candidates = [',', ';', "\t", '|'];
